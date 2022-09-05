@@ -75,3 +75,68 @@ In the real world we need to analyse and tweak Broadway options for maximum perf
 That is it! You can find more details and configuration at [Broadway RabbitMQ documentation](https://hexdocs.pm/broadway_rabbitmq/)
 and [Broadway RabbitMQ Guide](https://hexdocs.pm/broadway/rabbitmq.html).
 Happy hacking!
+
+
+## SCRIPT
+
+### RabbitMQ
+
+`docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management`
+
+```shell
+docker exec -it rabbitmq /bin/bash
+rabbitmqadmin declare queue name=bikes_queue durable=true
+```
+
+### PostgreSQL
+
+`docker run -it --rm --name postgis -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgis/postgis:12-3.1`
+
+`mix ecto.setup`
+
+### Run and test
+
+#### with the error batcher
+
+```elixir
+{:ok, connection} = AMQP.Connection.open
+{:ok, channel} = AMQP.Channel.open(connection)
+AMQP.Queue.declare(channel, "bikes_queue", durable: true)
+
+AMQP.Basic.publish(channel, "", "bikes_queue", "message #{i}")
+
+AMQP.Connection.close(connection)
+```
+
+### with the default batcher
+
+```elixir
+data = "1,-10.9393413858164,-37.0627421097422,1,2014-09-13 07:24:32"
+data = "1,-10.9393413858164,-37.0627421097422,1,#{DateTime.utc_now()}"
+
+{:ok, connection} = AMQP.Connection.open
+{:ok, channel} = AMQP.Channel.open(connection)
+AMQP.Queue.declare(channel, "bikes_queue", durable: true)
+
+AMQP.Basic.publish(channel, "", "bikes_queue", data)
+
+AMQP.Connection.close(connection)
+```
+
+```shell
+docker exec -it  postgis psql -U postgres
+```
+```sql
+\c bike_sharing_dev
+select * from bike_coordinates limit 1;
+select * from bike_coordinates order by inserted_at asc;
+```
+
+
+### with high load
+
+```shell
+mix run --no-halt priv/publish_sample_events.exs
+BIKE_INTERVAL=10 mix run --no-halt priv/publish_sample_events.exs
+BIKE_INTERVAL=1 mix run --no-halt priv/publish_sample_events.exs
+```

@@ -14,6 +14,10 @@ config :bike_sharing,
      [
        queue: "bikes_queue",
        qos: [
+         # the max num of unacked messages
+         #
+         # To ensure that all processors in a given pipeline can receive messages,
+         # the value should be set to at least `max_demand * <number of processors>`
          prefetch_count: 50
        ],
        on_failure: :reject_and_requeue

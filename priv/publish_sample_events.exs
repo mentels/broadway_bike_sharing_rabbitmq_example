@@ -1,3 +1,5 @@
+require Logger
+{interval_ms, ""} = "BIKE_INTERVAL" |> System.get_env("1000") |> Integer.parse()
 {_, opts} = Application.fetch_env!(:bike_sharing, :producer_module)
 
 # Wait for RabbitMQ connection on Docker
@@ -12,6 +14,7 @@ AMQP.Queue.declare(channel, "bikes_queue", durable: true)
 sample = File.read!("./priv/trajectories_sample.csv")
 [_header | lines] = String.split(sample, "\n")
 
-for line <- lines, do: AMQP.Basic.publish(channel, "", "bikes_queue", line)
+Logger.info("Processing lines_count=#{length(lines)} at interval=#{interval_ms} ms")
+for line <- lines, do: Process.sleep(interval_ms) && AMQP.Basic.publish(channel, "", "bikes_queue", line)
 
 AMQP.Connection.close(connection)

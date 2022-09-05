@@ -16,16 +16,26 @@ defmodule BikeSharing do
   def start_link(_opts) do
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
+      # RabbitMQ producer will get given amount of message in advance (prefetch_count)
+      # so that they can be immediately passed down to processors when available;
+      # once a batch of messages gets acked a new batch, up to the prefetch is automatically sent
       producer: [
         module: Application.fetch_env!(:bike_sharing, :producer_module),
         concurrency: 2
       ],
+      # each processor ask for `max_demand * producer_concurrency` initially
+      #
+      # it's bad when messages are enqueued in processors mailbox as the don't have a chance
+      # to get redistributed to other processors that are available
+      #
+      # max_demand is set for ALL processors stages (in total or for each? I guess for each;
+      # otherwise how would they "divide the demand"?)
       processors: [
-        default: [concurrency: 8]
+        default: [concurrency: 4]
       ],
       batchers: [
-        default: [batch_size: 10, batch_timeout: 1500, concurrency: 5],
-        parse_err: [batch_size: 10, concurrency: 2, batch_timeout: 1500]
+        default: [batch_size: 5, batch_timeout: 1500, concurrency: 4],
+        parse_err: [batch_size: 5, concurrency: 2, batch_timeout: 1500]
       ]
     )
   end
